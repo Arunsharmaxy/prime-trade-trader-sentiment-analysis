@@ -1,0 +1,233 @@
+const fs = require("fs");
+const {
+  Document, Packer, Paragraph, TextRun, HeadingLevel, Table, TableRow, TableCell,
+  WidthType, ShadingType, ImageRun, AlignmentType, BorderStyle, PageBreak
+} = require("docx");
+
+const NAVY = "1B2A4A";
+const ACCENT = "2E5EAA";
+const GREY = "666666";
+
+function h1(text) {
+  return new Paragraph({ text, heading: HeadingLevel.HEADING_1, spacing: { before: 400, after: 200 } });
+}
+function h2(text) {
+  return new Paragraph({ text, heading: HeadingLevel.HEADING_2, spacing: { before: 300, after: 150 } });
+}
+function body(text, opts = {}) {
+  return new Paragraph({
+    children: [new TextRun({ text, ...opts })],
+    spacing: { after: 160 },
+  });
+}
+function bullet(text) {
+  return new Paragraph({
+    children: [new TextRun(text)],
+    bullet: { level: 0 },
+    spacing: { after: 80 },
+  });
+}
+function image(path, width = 550, height = 344) {
+  return new Paragraph({
+    children: [new ImageRun({ data: fs.readFileSync(path), transformation: { width, height }, type: "png" })],
+    alignment: AlignmentType.CENTER,
+    spacing: { after: 300 },
+  });
+}
+function caption(text) {
+  return new Paragraph({
+    children: [new TextRun({ text, italics: true, size: 20, color: GREY })],
+    alignment: AlignmentType.CENTER,
+    spacing: { after: 300 },
+  });
+}
+
+function makeTable(headers, rows, colWidths) {
+  const total = colWidths.reduce((a, b) => a + b, 0);
+  const headerRow = new TableRow({
+    tableHeader: true,
+    children: headers.map((htext, i) => new TableCell({
+      width: { size: colWidths[i], type: WidthType.DXA },
+      shading: { type: ShadingType.CLEAR, fill: NAVY },
+      children: [new Paragraph({ children: [new TextRun({ text: htext, bold: true, color: "FFFFFF", size: 20 })] })],
+    })),
+  });
+  const dataRows = rows.map((r, ri) => new TableRow({
+    children: r.map((cell, i) => new TableCell({
+      width: { size: colWidths[i], type: WidthType.DXA },
+      shading: { type: ShadingType.CLEAR, fill: ri % 2 === 0 ? "F2F4F8" : "FFFFFF" },
+      children: [new Paragraph({ children: [new TextRun({ text: String(cell), size: 20 })] })],
+    })),
+  }));
+  return new Table({ width: { size: total, type: WidthType.DXA }, columnWidths: colWidths, rows: [headerRow, ...dataRows] });
+}
+
+function hr() {
+  return new Paragraph({
+    border: { bottom: { color: "CCCCCC", space: 1, style: BorderStyle.SINGLE, size: 6 } },
+    spacing: { after: 300 },
+  });
+}
+
+const doc = new Document({
+  sections: [{
+    properties: { page: { size: { width: 12240, height: 15840 } } },
+    children: [
+      // Title page
+      new Paragraph({ text: "", spacing: { after: 1200 } }),
+      new Paragraph({
+        children: [new TextRun({ text: "Trader Performance vs. Market Sentiment", bold: true, size: 48, color: NAVY })],
+        alignment: AlignmentType.CENTER,
+        spacing: { after: 200 },
+      }),
+      new Paragraph({
+        children: [new TextRun({ text: "An Analysis of Hyperliquid Trading Behavior Against the Bitcoin Fear & Greed Index", size: 26, color: GREY })],
+        alignment: AlignmentType.CENTER,
+        spacing: { after: 600 },
+      }),
+      new Paragraph({
+        children: [new TextRun({ text: "Dataset: Historical Trader Data (Hyperliquid) · Bitcoin Market Sentiment Dataset — 2024", size: 22, color: GREY })],
+        alignment: AlignmentType.CENTER,
+        spacing: { after: 100 },
+      }),
+      new Paragraph({
+        children: [new TextRun({ text: "211,224 trades · 32 accounts · 246 traded assets · Jan – Dec 2024", size: 22, color: GREY })],
+        alignment: AlignmentType.CENTER,
+      }),
+      new Paragraph({ children: [new PageBreak()] }),
+
+      // Executive Summary
+      h1("Executive Summary"),
+      body("This report examines 211,224 trades from 32 Hyperliquid accounts against daily Bitcoin market sentiment (Fear & Greed Index) for 2024, to identify how sentiment regimes relate to trader performance, risk-taking, and behavior."),
+      h2("Headline Findings"),
+      bullet("Win rates are lowest in Extreme Fear (76.2%) and Greed (76.9%), and highest in Extreme Greed (89.2%) and Fear (87.3%) — performance does not move in a straight line with sentiment."),
+      bullet("Risk-adjusted returns (mean PnL / volatility of PnL) are best in Extreme Greed (0.123) and worst in Extreme Fear (0.044) — the same average profit in Fear regimes comes with far more volatility."),
+      bullet("Trading activity spikes sharply in Extreme Fear (1,529 trades/day on average) versus Greed (261/day) — traders are most active exactly when performance is weakest and most volatile."),
+      bullet("Average position size is largest in Fear (US$7,816) and smallest in Extreme Greed (US$3,112), suggesting traders size up during uncertainty rather than during confirmed uptrends."),
+      bullet("Short (Sell) positioning rises steadily from Extreme Fear (48.9%) to Extreme Greed (55.1%), showing a mild but consistent tendency to fade the crowd as greed increases."),
+      bullet("Performance is highly concentrated: the top 5 accounts by cumulative PnL each generated over $800K, while the bottom 5 lost between $31K and $168K — sentiment alone explains only part of the outcome; account-level skill dominates."),
+
+      hr(),
+
+      // Methodology
+      h1("1. Methodology"),
+      body("Two datasets were merged on trade date:"),
+      bullet("Historical Trader Data (Hyperliquid): 211,224 rows covering account, coin, execution price, size, side, direction, closed PnL, fees, and timestamps."),
+      bullet("Bitcoin Market Sentiment Dataset: daily Fear & Greed Index classification (Extreme Fear, Fear, Neutral, Greed, Extreme Greed), 2018–2025, filtered to the trading window."),
+      body("Trade timestamps were converted to calendar dates and joined against the daily sentiment label. Only 6 of 211,224 trades (<0.01%) had no matching sentiment date and were excluded. \"Closed PnL\" rows equal to zero (position-opening entries with no realized profit/loss) were excluded from PnL and win-rate calculations, leaving 104,402 realized trades for performance analysis; all 211,218 matched rows were retained for activity, sizing, and directional analysis."),
+
+      hr(),
+
+      // Section 2: PnL by sentiment
+      h1("2. Profitability by Market Sentiment"),
+      body("Realized trade PnL varies meaningfully across sentiment regimes. Extreme Greed and Fear post the highest average and median PnL per trade, while Extreme Fear and Neutral are the weakest."),
+      image("chart1_pnl_by_sentiment.png"),
+      caption("Figure 1 — Mean and median closed PnL per trade by sentiment regime."),
+      makeTable(
+        ["Sentiment", "Trades", "Mean PnL", "Median PnL", "Total PnL"],
+        [
+          ["Extreme Fear", "10,406", "$71.03", "$6.39", "$739,110"],
+          ["Fear", "29,808", "$112.63", "$6.35", "$3,357,155"],
+          ["Neutral", "18,159", "$71.20", "$4.58", "$1,292,921"],
+          ["Greed", "25,176", "$85.40", "$4.93", "$2,150,129"],
+          ["Extreme Greed", "20,853", "$130.21", "$8.53", "$2,715,171"],
+        ],
+        [2400, 1700, 1700, 1700, 2000]
+      ),
+      new Paragraph({ text: "", spacing: { after: 300 } }),
+      body("Note the gap between mean and median across all regimes: median PnL is a small fraction of the mean everywhere, meaning a small number of large winning trades pull average profitability up. This is a fat-tailed return distribution, not a case of \"typical\" trades being highly profitable."),
+
+      hr(),
+
+      // Section 3: Win rate
+      h1("3. Win Rate by Market Sentiment"),
+      body("Win rate tells a different story from raw PnL. Extreme Greed and Fear have the highest share of profitable trades, while Extreme Fear and Greed are weakest."),
+      image("chart2_winrate_by_sentiment.png"),
+      caption("Figure 2 — Share of realized trades closed with positive PnL, by sentiment."),
+      body("The dip in Greed (76.9%) relative to both its neighbors (Fear 87.3%, Extreme Greed 89.2%) is notable — it suggests \"Greed\" is a transitional, less predictable regime, whereas the extremes (Extreme Fear, Extreme Greed) produce more decisive, higher-conviction outcomes once a trade is closed."),
+
+      hr(),
+
+      // Section 4: Risk-adjusted
+      h1("4. Risk-Adjusted Performance"),
+      body("Average PnL alone overstates how attractive a regime is if it comes with high volatility. Dividing mean PnL by the standard deviation of PnL within each regime gives a simple risk-adjusted view."),
+      image("chart6_riskadjusted_by_sentiment.png"),
+      caption("Figure 3 — Risk-adjusted trade performance (mean PnL ÷ PnL volatility) by sentiment."),
+      body("Extreme Greed offers the best risk-adjusted profile (0.123) — reasonably strong average returns with comparatively contained volatility (std. dev. $1,058). Extreme Fear is the worst on this measure (0.044): its average PnL is unremarkable, yet volatility is the highest of any regime ($1,628), meaning outcomes swing widely trade to trade. Fear looks attractive on raw average PnL alone, but its risk-adjusted score (0.084) is roughly two-thirds of Extreme Greed's, reflecting its own elevated volatility ($1,345)."),
+
+      hr(),
+
+      // Section 5: Activity
+      h1("5. Trading Activity and Position Sizing"),
+      image("chart3_activity_by_sentiment.png"),
+      caption("Figure 4 — Average number of trades per day, by sentiment."),
+      image("chart4_size_by_sentiment.png"),
+      caption("Figure 5 — Average trade size (USD), by sentiment."),
+      body("Activity is dramatically higher during Extreme Fear (1,529 trades/day on average) than any other regime — roughly 4x Neutral and nearly 6x Greed. Average position sizing is also elevated in Fear ($7,816) and Extreme Fear ($5,350) relative to Extreme Greed ($3,112). Together, these patterns indicate traders in this dataset behave more reactively and take on larger, more frequent positions exactly when the market is most stressed and PnL volatility is highest — a combination that increases exposure to tail risk rather than reducing it."),
+
+      hr(),
+
+      // Section 6: Long/short
+      h1("6. Directional Positioning"),
+      image("chart5_longshort_by_sentiment.png"),
+      caption("Figure 6 — Long (Buy) vs. short (Sell) trade share, by sentiment."),
+      body("Short positioning increases steadily as sentiment moves from Extreme Fear (48.9% short) to Extreme Greed (55.1% short). This is a mild contrarian tilt: traders lean progressively more bearish as the crowd gets greedier, and progressively more balanced/bullish as fear peaks. It's a modest effect (roughly a 6-point swing across the full sentiment range), not a dramatic regime flip, but it is directionally consistent and shows up cleanly across all five sentiment buckets."),
+
+      hr(),
+
+      // Section 7: Tail risk
+      h1("7. Tail Risk by Sentiment"),
+      body("Looking at the frequency of outsized trades (realized PnL beyond ±$500) sharpens the risk picture:"),
+      makeTable(
+        ["Sentiment", "Large Loss Rate (< -$500)", "Large Win Rate (> $500)"],
+        [
+          ["Extreme Fear", "2.82%", "3.66%"],
+          ["Fear", "0.51%", "4.19%"],
+          ["Neutral", "0.81%", "3.50%"],
+          ["Greed", "0.93%", "3.73%"],
+          ["Extreme Greed", "0.39%", "4.42%"],
+        ],
+        [3000, 3200, 3200]
+      ),
+      new Paragraph({ text: "", spacing: { after: 300 } }),
+      body("Extreme Fear stands out sharply: large losses occur more than 5x as often as in any other regime (2.82% of trades vs. 0.39–0.93% elsewhere), while its large-win rate is only middling. Extreme Greed has the best asymmetry — the lowest large-loss rate (0.39%) paired with the highest large-win rate (4.42%). This asymmetry is the clearest single signal in the dataset: Extreme Fear is where tail risk concentrates."),
+
+      hr(),
+
+      // Section 8: Account concentration
+      h1("8. Account-Level Concentration"),
+      body("Performance is not evenly distributed across the 32 accounts in the dataset. The top 5 accounts by cumulative realized PnL each generated over $800,000, while the weakest 5 accounts lost between roughly $31,000 and $168,000 over the year."),
+      body("This matters for interpreting the sentiment findings above: sentiment-level averages are influenced by a small number of high-volume, high-skill accounts. When individual top accounts are examined, their best-performing sentiment regime varies — some peak in Extreme Fear, others in Extreme Greed — indicating that skilled traders adapt strategy to regime rather than following one fixed sentiment-based rule. Sentiment is a useful macro backdrop, but account-level strategy and discipline remain the dominant driver of outcomes."),
+
+      hr(),
+
+      // Section 9: Strategic recommendations
+      h1("9. Strategic Recommendations"),
+      h2("For risk management"),
+      bullet("Reduce position size and/or trade frequency during Extreme Fear. This regime combines the highest trade volume, the largest average position size, the highest PnL volatility, and by far the highest large-loss rate — a stacked set of risk factors."),
+      bullet("Set tighter stop-losses specifically in Extreme Fear and Greed regimes, where win rates dip below 77%, versus Fear/Extreme Greed where win rates exceed 87%."),
+      h2("For opportunity-seeking"),
+      bullet("Extreme Greed offers the strongest risk-adjusted profile in this dataset — highest win rate (89.2%), best large-win/large-loss asymmetry, and best risk-adjusted return (0.123). It merits a larger allocation of capital and confidence relative to its trade volume, which is currently the second-lowest of any regime."),
+      bullet("Fear (not Extreme Fear) is the most profitable regime in absolute terms ($112.63 mean PnL/trade) and worth active participation, but position sizing should still respect its above-average volatility."),
+      h2("For strategy design"),
+      bullet("Consider a mild contrarian short bias as sentiment moves toward Extreme Greed, consistent with the directional data — but treat this as a secondary signal (a ~6-point shift), not a standalone strategy."),
+      bullet("Because account-level variation outweighs sentiment-level variation, use sentiment as one input among several (position sizing, volatility regime, individual track record) rather than a sole trading signal."),
+
+      hr(),
+
+      // Limitations
+      h1("10. Limitations"),
+      bullet("Sentiment is measured daily and market-wide (BTC-based); it is applied uniformly to all trades on a given date regardless of the specific asset traded, which may not reflect asset-specific sentiment for smaller altcoins."),
+      bullet("The dataset covers 32 accounts only — findings reflect this specific trader population and may not generalize to the broader market."),
+      bullet("\"Closed PnL\" rows with value 0 were treated as non-realized entries and excluded from performance metrics; if some genuinely break-even trades were also excluded, win rates could be marginally overstated."),
+      bullet("Correlation between sentiment and performance does not establish causation — skilled traders may simply trade more successfully in certain regimes for reasons unrelated to sentiment itself."),
+
+      new Paragraph({ text: "", spacing: { after: 200 } }),
+    ],
+  }],
+});
+
+Packer.toBuffer(doc).then((buf) => {
+  fs.writeFileSync("/home/claude/work/Trader_Sentiment_Analysis_Report.docx", buf);
+  console.log("done");
+});
